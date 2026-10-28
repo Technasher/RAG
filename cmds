@@ -1,0 +1,15 @@
+alembic revision --autogenerate -m "init: documents, chunks, conversations, messages"
+op.execute("CREATE EXTENSION IF NOT EXISTS vector")
+op.create_index(
+    "ix_chunks_embedding_hnsw",
+    "chunks", ["embedding"],
+    postgresql_using="hnsw",
+    postgresql_with={"m": 16, "ef_construction": 64},
+    postgresql_ops={"embedding": "vector_cosine_ops"},
+)
+op.create_index(
+    "ix_chunks_content_tsv_gin",
+    "chunks", ["content_tsv"],
+    postgresql_using="gin",
+)
+alembic upgrade head
