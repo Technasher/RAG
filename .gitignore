@@ -155,3 +155,5 @@ temp/
 *.bak
 *.orig
 *.rej
+
+/.env

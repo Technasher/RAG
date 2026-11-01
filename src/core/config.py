@@ -1,4 +1,3 @@
-# src/core/config.py
 from functools import lru_cache
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -46,6 +45,18 @@ class Settings(BaseSettings):
     # --- HTTP ---
     cors_origins: list[str] = ["http://localhost:5173"]
     admin_api_key: str = ""
+
+    # --- Prompt / время ---
+    default_timezone: str = "Europe/Moscow"
+
+    # Учебный календарь
+    semester_start_date: str = "2026-09-01"  # ISO: YYYY-MM-DD, первый день занятий
+    first_week_is_numerator: bool = True  # True = 1-я неделя «числитель»
+    # False = 1-я неделя «знаменатель»
+
+    # Ручной override для тестов (пустая строка = вычислять автоматически)
+    # Допустимые значения: "" | "числитель" | "знаменатель"
+    week_type_override: str = ""
 
 
 @lru_cache
