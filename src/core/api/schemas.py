@@ -3,8 +3,7 @@ from __future__ import annotations
 from typing import Literal
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field
-
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 Channel = Literal["web", "telegram", "api"]
 
@@ -27,25 +26,21 @@ class Attachment(BaseModel):
 # Chat
 # --------------------------------------------------------------------------- #
 class ChatRequest(BaseModel):
-    """Запрос от любого интерфейса (web / telegram / api)."""
     model_config = ConfigDict(extra="forbid")
 
-    message: str = Field(..., min_length=1, max_length=4000)
+    message: str | None = Field(default=None, min_length=1, max_length=4000)
     intent: str | None = Field(default=None, max_length=64)
-    # Если клиент ещё не имеет сессии — передаёт null, сервер сгенерирует UUID
-    # и вернёт в ответе. Клиент сохраняет его (localStorage / chat_id в боте).
+
     session_id: UUID | None = None
-
     channel: Channel = "api"
-    user_ref: str | None = Field(
-        default=None,
-        max_length=128,
-        description="Идентификатор пользователя в канале (tg chat_id, web user_id)",
-    )
-
-    # Переопределение параметров поиска на один запрос (для отладки/тестов)
+    user_ref: str | None = Field(default=None, max_length=128)
     top_k: int | None = Field(default=None, ge=1, le=50)
 
+    @model_validator(mode="after")
+    def _require_one(self):
+        if not self.message and not self.intent:
+            raise ValueError("Either 'message' or 'intent' must be provided")
+        return self
 
 class Source(BaseModel):
     """Ссылка на фрагмент, который LLM использовала при ответе."""

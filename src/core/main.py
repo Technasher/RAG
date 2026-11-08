@@ -7,11 +7,16 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.requests import Request
 
 from src.core.api.routes import api_router, health_router
 from src.core.config import settings
 from src.core.db.session import engine
 from src.core.rag.exceptions import RagError
+
+from fastapi.staticfiles import StaticFiles
+from pathlib import Path
 
 logging.basicConfig(
     level=logging.INFO,
@@ -43,6 +48,10 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+widget_dir = Path("widget")
+if widget_dir.exists():
+    app.mount("/widget", StaticFiles(directory=widget_dir, html=True), name="widget")
+
 
 @app.exception_handler(RagError)
 async def rag_error_handler(request: Request, exc: RagError):
@@ -54,5 +63,19 @@ async def rag_error_handler(request: Request, exc: RagError):
     )
 
 
-app.include_router(health_router)   # /health, /ready
-app.include_router(api_router)      # /api/v1/chat, /api/v1/admin/*
+class NoCacheDevMiddleware(BaseHTTPMiddleware):
+    """В dev не даём браузеру кэшировать статику виджета."""
+
+    async def dispatch(self, request: Request, call_next):
+        response = await call_next(request)
+        if request.url.path.startswith("/widget"):
+            response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+            response.headers["Pragma"] = "no-cache"
+            response.headers["Expires"] = "0"
+        return response
+
+
+if settings.dev_mode:
+    app.add_middleware(NoCacheDevMiddleware)
+app.include_router(health_router)  # /health, /ready
+app.include_router(api_router)  # /api/v1/chat, /api/v1/admin/*

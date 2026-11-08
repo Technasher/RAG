@@ -1,4 +1,4 @@
-const API_BASE = 'http://localhost:8000'; // URL вашего FastAPI бэкенда
+const API_BASE = ''; // URL вашего FastAPI бэкенда
 const SESSION_KEY = 'rag_chat_session_id';
 
 // --- Управление сессией ---
@@ -16,27 +16,30 @@ function getSessionId() {
 }
 
 // --- Отправка сообщения ---
-async function sendMessage(text, isIntent = false) {
+async function sendMessage(text) {
     if (!text.trim()) return;
     appendMessage('user', text);
 
     const payload = {
         session_id: getSessionId(),
         channel: 'web',
-        // Если это intent, отправляем его, иначе текст
-        ...(isIntent ? { intent: text } : { message: text })
+        message: text,
     };
 
     try {
         const response = await fetch(`${API_BASE}/api/v1/chat`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload)
+            body: JSON.stringify(payload),
         });
-        if (!response.ok) throw new Error(`HTTP ${response.status}`);
-
+        if (!response.ok) {
+            const err = await response.json();
+            console.error('422 detail:', err);
+            appendMessage('assistant', `⚠️ Ошибка: ${err.detail?.[0]?.msg || response.status}`);
+            return;
+        }
         const data = await response.json();
-        appendMessage('assistant', data.answer, data.attachments, data.quick_replies);
+        appendMessage('assistant', data.answer, data.attachments || [], data.quick_replies || []);
     } catch (error) {
         appendMessage('assistant', '⚠️ Ошибка соединения. Попробуйте позже.');
         console.error(error);
@@ -46,24 +49,26 @@ async function sendMessage(text, isIntent = false) {
 // --- Отрисовка сообщения ---
 function appendMessage(role, text, attachments = [], quickReplies = []) {
     const container = document.getElementById('chat-messages');
+
+    // 1. Текст
     const msgDiv = document.createElement('div');
     msgDiv.className = `message ${role}`;
     msgDiv.textContent = text;
     container.appendChild(msgDiv);
 
-    // Вложения
+    // 2. Вложения
     if (attachments.length > 0) {
         attachments.forEach(att => {
             const link = document.createElement('a');
             link.href = `${API_BASE}${att.url}`;
             link.download = att.filename;
             link.className = 'attachment-link';
-            link.innerHTML = `📎 ${att.filename} (${(att.size / 1024).toFixed(0)} КБ)`;
+            link.textContent = `📎 ${att.filename} (${(att.size / 1024).toFixed(0)} КБ)`;
             container.appendChild(link);
         });
     }
 
-    // Быстрые ответы (кнопки)
+    // 3. Быстрые ответы (кнопки)
     if (quickReplies.length > 0) {
         const btnContainer = document.createElement('div');
         btnContainer.className = 'quick-replies';
@@ -71,14 +76,43 @@ function appendMessage(role, text, attachments = [], quickReplies = []) {
             const btn = document.createElement('button');
             btn.textContent = qr.label;
             btn.className = 'quick-reply-btn';
-            // По клику отправляем intent
-            btn.onclick = () => sendMessage(qr.intent, true);
+            btn.onclick = () => sendIntent(qr.intent);   // ← ключевая строка
             btnContainer.appendChild(btn);
         });
         container.appendChild(btnContainer);
     }
 
     container.scrollTop = container.scrollHeight;
+}
+
+async function sendIntent(intent) {
+    // Показываем «нажатие» как сообщение пользователя
+    appendMessage('user', `[${intent}]`, [], []);   // или label, если передать
+
+    const payload = {
+        session_id: getSessionId(),
+        channel: 'web',
+        intent: intent,
+    };
+
+    try {
+        const response = await fetch(`${API_BASE}/api/v1/chat`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+        });
+        if (!response.ok) {
+            const err = await response.json();
+            console.error('422 detail:', err);
+            appendMessage('assistant', `⚠️ Ошибка: ${err.detail?.[0]?.msg || response.status}`);
+            return;
+        }
+        const data = await response.json();
+        appendMessage('assistant', data.answer, data.attachments || [], data.quick_replies || []);
+    } catch (error) {
+        appendMessage('assistant', '⚠️ Ошибка соединения. Попробуйте позже.');
+        console.error(error);
+    }
 }
 
 // --- Инициализация ---
@@ -94,3 +128,12 @@ document.getElementById('chat-input').addEventListener('keypress', (e) => {
         input.value = '';
     }
 });
+
+// В самом конце app.js, после установки обработчиков
+async function init() {
+    // Отправляем «стартовый» intent, чтобы получить приветствие + кнопки
+    await sendIntent('start');   // или запрос с пустым message — см. ниже
+}
+
+// Лучше — отдельный intent "start" в INTENTS
+init();

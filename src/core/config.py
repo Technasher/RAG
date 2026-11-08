@@ -10,6 +10,8 @@ class Settings(BaseSettings):
         extra="ignore",
     )
 
+    dev_mode: bool = True
+
     # --- DB ---
     database_url: str = "postgresql+asyncpg://postgres:postgres@localhost:5432/rag"
     sql_echo: bool = False

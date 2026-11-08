@@ -14,11 +14,17 @@ class Intent:
 
 
 INTENTS: dict[str, Intent] = {
+    "start": Intent(
+            key="start",
+            label="👋 Начать",
+            answer="Здравствуйте! Чем могу помочь?",
+            related=["show_schedule", "admission", "contacts"],
+        ),
     "show_schedule": Intent(
         key="show_schedule",
         label="📅 Расписание",
         answer="Актуальное расписание занятий — во вложении.",
-        document_external_id="schedule_2026",
+        document_external_id="Расписание занятий ПМиИ-251 ПМиИ-252 ПМиИА-251.pdf",
         attach_always=True,
         related=["admission", "contacts"],
     ),
